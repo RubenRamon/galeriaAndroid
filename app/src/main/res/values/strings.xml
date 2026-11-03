@@ -16,4 +16,8 @@
     <string name="partial_banner_text">Acceso parcial: solo ves los elementos que has seleccionado.</string>
     <string name="partial_banner_select_more">Elegir más</string>
     <string name="partial_banner_settings">Ajustes</string>
+
+    <!-- Galería -->
+    <string name="gallery_title">Fotos</string>
+    <string name="gallery_empty">No hay fotos ni vídeos que mostrar.</string>
 </resources>

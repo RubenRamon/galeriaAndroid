@@ -7,16 +7,21 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
 import com.example.galeria.ui.GaleriaRoot
+import com.example.galeria.ui.components.LocalThumbnailLoader
 import com.example.galeria.ui.theme.GaleriaTheme
+import com.example.galeria.viewmodel.GalleryViewModel
 import com.example.galeria.viewmodel.GaleriaViewModelFactory
 import com.example.galeria.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by viewModels {
-        GaleriaViewModelFactory((application as GaleriaApp).container)
-    }
+    private val container: AppContainer
+        get() = (application as GaleriaApp).container
+
+    private val viewModel: MainViewModel by viewModels { GaleriaViewModelFactory(container) }
+    private val galleryViewModel: GalleryViewModel by viewModels { GaleriaViewModelFactory(container) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,7 +32,9 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             GaleriaTheme {
-                GaleriaRoot(viewModel)
+                CompositionLocalProvider(LocalThumbnailLoader provides container.thumbnailLoader) {
+                    GaleriaRoot(viewModel, galleryViewModel)
+                }
             }
         }
     }
