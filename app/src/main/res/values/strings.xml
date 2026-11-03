@@ -1,3 +1,19 @@
 <resources>
     <string name="app_name">Galeria</string>
+
+    <!-- Permisos -->
+    <string name="permission_title">Acceso a tus fotos y vídeos</string>
+    <string name="permission_body">Galeria necesita acceso a las fotos y vídeos del teléfono para mostrarlos ordenados por fecha y agrupados por carpetas. Todo se queda en tu dispositivo: la app no usa Internet.</string>
+    <string name="permission_button_grant">Conceder acceso</string>
+    <string name="permission_denied_title">Sin acceso a tus fotos</string>
+    <string name="permission_denied_body">Sin este permiso no puedo mostrar tu galería. Puedes volver a solicitarlo cuando quieras.</string>
+    <string name="permission_button_retry">Volver a solicitar</string>
+    <string name="permission_blocked_title">Permiso desactivado</string>
+    <string name="permission_blocked_body">Android ya no mostrará el aviso de permiso. Actívalo en Ajustes, en Permisos, Fotos y vídeos.</string>
+    <string name="permission_button_settings">Abrir ajustes</string>
+
+    <!-- Acceso parcial -->
+    <string name="partial_banner_text">Acceso parcial: solo ves los elementos que has seleccionado.</string>
+    <string name="partial_banner_select_more">Elegir más</string>
+    <string name="partial_banner_settings">Ajustes</string>
 </resources>
