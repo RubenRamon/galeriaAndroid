@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,7 +41,8 @@ fun GalleryScreen(
         entriesFor = { yearHeaders -> if (yearHeaders) state.entriesByYear else state.entriesByMonth },
         leadingItemCount = if (showPartialBanner) 2 else 1, // título (+ aviso de acceso parcial)
         onMediaClick = onMediaClick,
-        modifier = modifier
+        modifier = modifier,
+        bottomPadding = GalleryConfig.BOTTOM_ISLAND_CLEARANCE
     ) {
         item(key = "title", span = { GridItemSpan(maxLineSpan) }, contentType = "title") {
             GalleryTitle()
@@ -74,9 +76,9 @@ fun GalleryScreen(
 private fun GalleryTitle() {
     Text(
         text = stringResource(R.string.gallery_title),
-        color = GalleryGreyLight,
+        color = Color(0xFFFFFFFF), // blanco totalmente opaco
         fontSize = 32.sp,
-        fontWeight = FontWeight.Light,
+        fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(start = 24.dp, top = 56.dp, bottom = 24.dp)
     )
 }

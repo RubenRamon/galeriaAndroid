@@ -31,4 +31,7 @@
     <string name="album_count_one">1 elemento</string>
     <string name="album_count_many">%d elementos</string>
     <string name="back_description">Volver</string>
+
+    <!-- Isla inferior -->
+    <string name="tab_photos">Fotos</string>
 </resources>

@@ -1,11 +1,15 @@
 package com.example.galeria.ui.gallery
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,14 +26,20 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.galeria.data.model.MediaItem
@@ -38,6 +48,7 @@ import com.example.galeria.domain.model.GalleryEntry
 import com.example.galeria.ui.components.MediaThumbnail
 import com.example.galeria.ui.components.VideoDurationLabel
 import com.example.galeria.ui.theme.GalleryGreyDark
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Cuadrícula de fotos y vídeos con zoom por pellizco, reutilizable en la galería
@@ -46,6 +57,7 @@ import com.example.galeria.ui.theme.GalleryGreyDark
  * @param entriesFor lista a mostrar según si se usan encabezados de año (true) o de mes (false).
  * @param leadingItemCount número de elementos que añade [leadingContent] antes de la lista.
  * @param onMediaClick se llama solo en modo normal; en modo compacto, pulsar amplía la cuadrícula.
+ * @param bottomPadding espacio extra al final de la lista (por ejemplo, para la isla inferior).
  */
 @Composable
 fun ZoomableMediaGrid(
@@ -54,6 +66,7 @@ fun ZoomableMediaGrid(
     leadingItemCount: Int,
     onMediaClick: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
+    bottomPadding: Dp = 0.dp,
     gridState: LazyGridState = rememberLazyGridState(),
     leadingContent: LazyGridScope.() -> Unit = {}
 ) {
@@ -67,6 +80,20 @@ fun ZoomableMediaGrid(
         zoomState.gridState = gridState
         zoomState.entriesProvider = entriesFor
         zoomState.leadingCount = leadingItemCount
+    }
+
+    // Anima cada cambio de columnas: la escala de la capa vuelve suavemente a 1.
+    // collectLatest cancela la animación anterior si llega otro cambio durante un pellizco.
+    LaunchedEffect(zoomState) {
+        snapshotFlow { zoomState.zoomChangeCount }.collectLatest {
+            if (zoomState.zoomScale != 1f) {
+                animate(
+                    initialValue = zoomState.zoomScale,
+                    targetValue = 1f,
+                    animationSpec = tween(GalleryConfig.ZOOM_STEP_ANIMATION_MS, easing = FastOutSlowInEasing)
+                ) { value, _ -> zoomState.zoomScale = value }
+            }
+        }
     }
 
     val handleClick: (MediaItem) -> Unit = remember(zoomState, onMediaClick, scope) {
@@ -88,12 +115,24 @@ fun ZoomableMediaGrid(
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
-            contentPadding = WindowInsets.systemBars.asPaddingValues(),
+            contentPadding = WindowInsets.systemBars.add(WindowInsets(bottom = bottomPadding)).asPaddingValues(),
             horizontalArrangement = Arrangement.spacedBy(GalleryConfig.CELL_SPACING),
             verticalArrangement = Arrangement.spacedBy(GalleryConfig.CELL_SPACING),
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(zoomState) { detectGridPinch(zoomState) }
+                .graphicsLayer {
+                    // Solo transformación de la capa en la fase de dibujo: no recompone ni vuelve a medir.
+                    val scale = zoomState.zoomScale
+                    scaleX = scale
+                    scaleY = scale
+                    val origin = zoomState.zoomOrigin
+                    transformOrigin = if (origin.isSpecified && size.width > 0f && size.height > 0f) {
+                        TransformOrigin(origin.x / size.width, origin.y / size.height)
+                    } else {
+                        TransformOrigin.Center
+                    }
+                }
         ) {
             leadingContent()
 

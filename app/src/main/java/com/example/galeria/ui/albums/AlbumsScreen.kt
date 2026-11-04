@@ -38,6 +38,7 @@ import com.example.galeria.data.model.Album
 import com.example.galeria.data.thumbnails.ThumbnailLoader
 import com.example.galeria.ui.components.MediaThumbnail
 import com.example.galeria.ui.components.VideoBadge
+import com.example.galeria.ui.gallery.GalleryConfig
 import com.example.galeria.ui.theme.GalleryGreyDark
 import com.example.galeria.ui.theme.GalleryGreyLight
 import com.example.galeria.ui.theme.GalleryWhite
@@ -71,7 +72,7 @@ fun AlbumsScreen(
             state = gridState,
             contentPadding = PaddingValues(
                 top = insets.calculateTopPadding(),
-                bottom = insets.calculateBottomPadding() + 16.dp,
+                bottom = insets.calculateBottomPadding() + GalleryConfig.BOTTOM_ISLAND_CLEARANCE,
                 start = 12.dp,
                 end = 12.dp
             ),

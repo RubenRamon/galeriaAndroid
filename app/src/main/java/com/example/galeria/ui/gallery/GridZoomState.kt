@@ -6,13 +6,17 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.isUnspecified
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -49,6 +53,18 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
 
     val showsYearHeaders: Boolean get() = columns >= GalleryConfig.YEAR_HEADERS_MIN_COLUMNS
 
+    /** Escala gráfica temporal de la animación de zoom (1 = en reposo). Solo se lee al dibujar. */
+    var zoomScale by mutableFloatStateOf(1f)
+        internal set
+
+    /** Punto (en píxeles) alrededor del cual se anima el zoom: los dedos o la miniatura pulsada. */
+    var zoomOrigin by mutableStateOf(Offset.Unspecified)
+        private set
+
+    /** Se incrementa en cada cambio de columnas para lanzar la animación. */
+    var zoomChangeCount by mutableIntStateOf(0)
+        private set
+
     // Los actualiza ZoomableMediaGrid en cada recomposición.
     internal var gridState: LazyGridState? = null
     internal var entriesProvider: (yearHeaders: Boolean) -> List<GalleryEntry> = { emptyList() }
@@ -60,6 +76,7 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
     internal fun beginPinch(centroid: Offset): ZoomAnchor? {
         animationJob?.cancel()
         pinchStartColumns = columns.toFloat()
+        if (centroid.isSpecified) zoomOrigin = centroid
         return findAnchor(centroid)
     }
 
@@ -68,26 +85,49 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
         if (totalZoom > 0f) applyColumns(pinchStartColumns / totalZoom, anchor)
     }
 
-    /** Amplía con animación alrededor de la miniatura pulsada (modo compacto). */
+    /** Amplía un nivel con animación alrededor de la miniatura pulsada (modo compacto). */
     internal fun zoomInFrom(scope: CoroutineScope, itemKey: String) {
-        val anchor = anchorForKey(itemKey)
+        val target = tapZoomTarget(columns)
+        if (target >= columns) return
+
+        val info = visibleInfo(itemKey)
+        val anchor = info?.let { anchorFrom(it) }
+        if (info != null) {
+            zoomOrigin = Offset(
+                info.offset.x + info.size.width / 2f,
+                info.offset.y + info.size.height / 2f
+            )
+        }
+
         animationJob?.cancel()
         animationJob = scope.launch {
             animate(
                 initialValue = columns.toFloat(),
-                targetValue = GalleryConfig.COMPACT_TAP_TARGET_COLUMNS.toFloat(),
+                targetValue = target.toFloat(),
                 animationSpec = tween(GalleryConfig.ZOOM_ANIMATION_MS)
             ) { value, _ -> applyColumns(value, anchor) }
         }
     }
 
+    private fun tapZoomTarget(current: Int): Int =
+        GalleryConfig.TAP_ZOOM_LEVELS.firstOrNull { it < current }
+            ?: (current - 1).coerceAtLeast(GalleryConfig.MIN_COLUMNS)
+
     private fun applyColumns(value: Float, anchor: ZoomAnchor?) {
         val newColumns = value
             .coerceIn(GalleryConfig.MIN_COLUMNS.toFloat(), GalleryConfig.MAX_COLUMNS.toFloat())
             .roundToInt()
-        if (newColumns == columns) return
+        val oldColumns = columns
+        if (newColumns == oldColumns) return
 
         columns = newColumns
+
+        // Animación: las celdas nuevas miden (viejo / nuevo) veces el tamaño anterior. Se parte de
+        // esa escala (limitada) y la capa vuelve a 1. Se escribe en el mismo instante que el cambio
+        // de columnas para que el primer dibujado ya salga con la escala aplicada.
+        zoomScale = (zoomScale * newColumns / oldColumns)
+            .coerceIn(GalleryConfig.ZOOM_STEP_MIN_SCALE, GalleryConfig.ZOOM_STEP_MAX_SCALE)
+        zoomChangeCount++
 
         // Se pide el desplazamiento en el mismo instante que el cambio de columnas,
         // así el siguiente dibujado ya sale colocado y no hay saltos visibles.
@@ -120,26 +160,26 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
                 y >= it.offset.y && y < it.offset.y + it.size.height
         } ?: visible.lastOrNull { it.offset.y <= y } ?: return null
 
+        return anchorFrom(hit)
+    }
+
+    /** Convierte un elemento visible en referencia; si es un encabezado, usa la miniatura de debajo. */
+    private fun anchorFrom(info: LazyGridItemInfo): ZoomAnchor? {
         val entries = entriesProvider(showsYearHeaders)
-        var entryIndex = hit.index - leadingCount
+        var entryIndex = info.index - leadingCount
         if (entryIndex < 0 || entryIndex >= entries.size) return null // título, aviso o carga
 
-        var topPx = hit.offset.y
+        var topPx = info.offset.y
         if (entries[entryIndex] is GalleryEntry.Header) {
             entryIndex += 1
             if (entryIndex >= entries.size) return null
-            topPx = hit.offset.y + hit.size.height
+            topPx = info.offset.y + info.size.height
         }
         return ZoomAnchor(entries[entryIndex].key, entryIndex, showsYearHeaders, topPx)
     }
 
-    private fun anchorForKey(key: String): ZoomAnchor? {
-        val state = gridState ?: return null
-        val info = state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: return null
-        val entryIndex = info.index - leadingCount
-        if (entryIndex < 0) return null
-        return ZoomAnchor(key, entryIndex, showsYearHeaders, info.offset.y)
-    }
+    private fun visibleInfo(key: String): LazyGridItemInfo? =
+        gridState?.layoutInfo?.visibleItemsInfo?.firstOrNull { it.key == key }
 
     companion object {
         /** Conserva el número de columnas al girar la pantalla. */

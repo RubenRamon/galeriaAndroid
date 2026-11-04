@@ -8,6 +8,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.galeria.data.model.MediaItem
@@ -70,6 +71,14 @@ fun HomeScreen(
                 )
             }
         }
+
+        // La isla queda por debajo del álbum abierto y del visor: solo se ve en las dos pantallas principales.
+        BottomIsland(
+            isGallerySelected = pagerState.currentPage == PAGE_GALLERY,
+            onGalleryClick = { scope.launch { pagerState.animateScrollToPage(PAGE_GALLERY) } },
+            onAlbumsClick = { scope.launch { pagerState.animateScrollToPage(PAGE_ALBUMS) } },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
 
         if (selectedBucketId != null) {
             AlbumDetailScreen(
