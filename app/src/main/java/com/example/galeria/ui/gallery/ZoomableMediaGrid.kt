@@ -36,7 +36,7 @@ import com.example.galeria.data.model.MediaItem
 import com.example.galeria.data.thumbnails.ThumbnailLoader
 import com.example.galeria.domain.model.GalleryEntry
 import com.example.galeria.ui.components.MediaThumbnail
-import com.example.galeria.ui.components.VideoBadge
+import com.example.galeria.ui.components.VideoDurationLabel
 import com.example.galeria.ui.theme.GalleryGreyDark
 
 /**
@@ -60,6 +60,7 @@ fun ZoomableMediaGrid(
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val columns = zoomState.columns
+    val showVideoInfo = columns < GalleryConfig.HIDE_VIDEO_INFO_MIN_COLUMNS
     val entries = entriesFor(zoomState.showsYearHeaders)
 
     SideEffect {
@@ -106,7 +107,7 @@ fun ZoomableMediaGrid(
             ) { entry ->
                 when (entry) {
                     is GalleryEntry.Header -> SectionHeader(entry.title)
-                    is GalleryEntry.Media -> MediaCell(entry.item, thumbSizePx, handleClick)
+                    is GalleryEntry.Media -> MediaCell(entry.item, thumbSizePx, showVideoInfo, handleClick)
                 }
             }
         }
@@ -127,7 +128,12 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun MediaCell(item: MediaItem, thumbSizePx: Int, onClick: (MediaItem) -> Unit) {
+private fun MediaCell(
+    item: MediaItem,
+    thumbSizePx: Int,
+    showVideoInfo: Boolean,
+    onClick: (MediaItem) -> Unit
+) {
     Box(
         Modifier
             .aspectRatio(1f)
@@ -135,8 +141,11 @@ private fun MediaCell(item: MediaItem, thumbSizePx: Int, onClick: (MediaItem) ->
             .clickable { onClick(item) }
     ) {
         MediaThumbnail(item = item, sizePx = thumbSizePx, modifier = Modifier.fillMaxSize())
-        if (item.isVideo) {
-            VideoBadge(Modifier.align(Alignment.BottomStart).padding(4.dp))
+        if (item.isVideo && showVideoInfo) {
+            VideoDurationLabel(
+                durationMs = item.durationMs,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp)
+            )
         }
     }
 }

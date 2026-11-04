@@ -75,7 +75,7 @@ private fun GalleryTitle() {
     Text(
         text = stringResource(R.string.gallery_title),
         color = GalleryGreyLight,
-        fontSize = 40.sp,
+        fontSize = 32.sp,
         fontWeight = FontWeight.Light,
         modifier = Modifier.padding(start = 24.dp, top = 56.dp, bottom = 24.dp)
     )

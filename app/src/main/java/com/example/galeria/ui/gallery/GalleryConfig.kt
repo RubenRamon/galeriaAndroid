@@ -4,8 +4,8 @@ import androidx.compose.ui.unit.dp
 
 /** Valores ajustables de la cuadrícula y del zoom. */
 object GalleryConfig {
-    /** Columnas iniciales (la captura de referencia muestra 8). */
-    const val DEFAULT_COLUMNS = 8
+    /** Columnas al abrir la galería o un álbum. */
+    const val DEFAULT_COLUMNS = 5
 
     /** Límites del zoom: 2 columnas = miniaturas muy grandes; 15 = muy pequeñas. */
     const val MIN_COLUMNS = 2
@@ -23,6 +23,12 @@ object GalleryConfig {
 
     /** Con este número de columnas o más, los encabezados pasan de «Nov 2026» a «2026». */
     const val YEAR_HEADERS_MIN_COLUMNS = 12
+
+    /**
+     * Con este número de columnas o más (miniaturas muy pequeñas), los vídeos no muestran
+     * su duración. Con menos columnas, la duración aparece abajo a la derecha.
+     */
+    const val HIDE_VIDEO_INFO_MIN_COLUMNS = 10
 
     /** Duración de la animación al pulsar en modo compacto. */
     const val ZOOM_ANIMATION_MS = 250
