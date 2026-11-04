@@ -15,6 +15,9 @@ class GaleriaViewModelFactory(private val container: AppContainer) : ViewModelPr
         modelClass.isAssignableFrom(GalleryViewModel::class.java) ->
             GalleryViewModel(container.mediaRepository) as T
 
+        modelClass.isAssignableFrom(AlbumsViewModel::class.java) ->
+            AlbumsViewModel(container.mediaRepository) as T
+
         else -> throw IllegalArgumentException("ViewModel desconocido: ${modelClass.name}")
     }
 }

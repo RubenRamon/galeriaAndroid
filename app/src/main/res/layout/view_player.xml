@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PlayerView con TextureView en lugar de SurfaceView. Un SurfaceView dentro de una página
+  del visor que se desplaza no se redibuja bien y se queda en negro hasta tocar la pantalla.
+  El shutter transparente deja ver la miniatura del vídeo hasta que llega el primer fotograma.
+-->
+<androidx.media3.ui.PlayerView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:resize_mode="fit"
+    app:shutter_background_color="@android:color/transparent"
+    app:surface_type="texture_view"
+    app:use_controller="true" />

@@ -22,15 +22,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.galeria.data.permissions.MediaAccess
-import com.example.galeria.ui.gallery.GalleryScreen
+import com.example.galeria.ui.home.HomeScreen
 import com.example.galeria.ui.viewer.MediaViewer
 import com.example.galeria.ui.permissions.PermissionScreen
+import com.example.galeria.viewmodel.AlbumsViewModel
 import com.example.galeria.viewmodel.GalleryViewModel
 import com.example.galeria.viewmodel.MainViewModel
 
 /** Raíz de la interfaz: decide si mostrar la pantalla de permisos o el contenido. */
 @Composable
-fun GaleriaRoot(viewModel: MainViewModel, galleryViewModel: GalleryViewModel) {
+fun GaleriaRoot(
+    viewModel: MainViewModel,
+    galleryViewModel: GalleryViewModel,
+    albumsViewModel: AlbumsViewModel
+) {
     val context = LocalContext.current
     val access by viewModel.access.collectAsStateWithLifecycle()
     val viewer by viewModel.viewer.collectAsStateWithLifecycle()
@@ -70,14 +75,16 @@ fun GaleriaRoot(viewModel: MainViewModel, galleryViewModel: GalleryViewModel) {
             )
         } else {
             Box(Modifier.fillMaxSize()) {
-                GalleryScreen(
-                    viewModel = galleryViewModel,
+                HomeScreen(
+                    galleryViewModel = galleryViewModel,
+                    albumsViewModel = albumsViewModel,
                     showPartialBanner = access == MediaAccess.PARTIAL,
                     onSelectMore = requestAccess,
                     onOpenSettings = openSettings,
-                    onMediaClick = { item -> viewModel.openViewer(item) }
+                    onOpenFromGallery = { item -> viewModel.openViewer(item) },
+                    onOpenFromAlbum = { item, albumItems -> viewModel.openViewer(item, albumItems) }
                 )
-                // El visor se dibuja encima: la galería de debajo conserva su posición.
+                // El visor se dibuja encima: la galería y los álbumes de debajo conservan su posición.
                 viewer?.let { request ->
                     MediaViewer(
                         items = request.items,

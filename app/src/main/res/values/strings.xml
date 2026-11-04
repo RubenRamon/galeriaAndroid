@@ -24,4 +24,11 @@
     <!-- Visor -->
     <string name="viewer_close">Cerrar</string>
     <string name="viewer_video_error">No se puede reproducir este vídeo.</string>
+
+    <!-- Álbumes -->
+    <string name="albums_title">Álbumes</string>
+    <string name="albums_empty">No hay álbumes que mostrar.</string>
+    <string name="album_count_one">1 elemento</string>
+    <string name="album_count_many">%d elementos</string>
+    <string name="back_description">Volver</string>
 </resources>

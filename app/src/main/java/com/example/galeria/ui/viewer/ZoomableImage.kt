@@ -12,11 +12,14 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -26,6 +29,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
@@ -41,11 +45,23 @@ private const val DOUBLE_TAP_ANIMATION_MS = 200
  * Ampliada, al llegar al borde lateral el gesto vuelve a quedar libre para cambiar de foto.
  */
 @Composable
-fun ZoomableImage(image: ImageBitmap?, modifier: Modifier = Modifier) {
+fun ZoomableImage(
+    image: ImageBitmap?,
+    modifier: Modifier = Modifier,
+    onZoomedChange: (Boolean) -> Unit = {}
+) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
     var doubleTapJob by remember { mutableStateOf<Job?>(null) }
+
+    // Informa al visor de si la foto está ampliada (sin recomponer en cada fotograma del gesto).
+    val currentOnZoomedChange by rememberUpdatedState(onZoomedChange)
+    LaunchedEffect(Unit) {
+        snapshotFlow { scale > 1.01f }
+            .distinctUntilChanged()
+            .collect { currentOnZoomedChange(it) }
+    }
 
     BoxWithConstraints(modifier) {
         val boxW = constraints.maxWidth.toFloat()

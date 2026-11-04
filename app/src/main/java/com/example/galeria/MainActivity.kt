@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.example.galeria.ui.GaleriaRoot
 import com.example.galeria.ui.components.LocalThumbnailLoader
 import com.example.galeria.ui.theme.GaleriaTheme
+import com.example.galeria.viewmodel.AlbumsViewModel
 import com.example.galeria.viewmodel.GalleryViewModel
 import com.example.galeria.viewmodel.GaleriaViewModelFactory
 import com.example.galeria.viewmodel.MainViewModel
@@ -22,6 +23,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels { GaleriaViewModelFactory(container) }
     private val galleryViewModel: GalleryViewModel by viewModels { GaleriaViewModelFactory(container) }
+    private val albumsViewModel: AlbumsViewModel by viewModels { GaleriaViewModelFactory(container) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,7 +35,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             GaleriaTheme {
                 CompositionLocalProvider(LocalThumbnailLoader provides container.thumbnailLoader) {
-                    GaleriaRoot(viewModel, galleryViewModel)
+                    GaleriaRoot(viewModel, galleryViewModel, albumsViewModel)
                 }
             }
         }

@@ -3,6 +3,7 @@ package com.example.galeria.ui.viewer
 import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
+import android.view.LayoutInflater
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
@@ -50,7 +51,10 @@ fun VideoPlayer(uri: Uri, modifier: Modifier = Modifier) {
                 playWhenReady = true
             }
     }
-    val playerView = remember(context) { PlayerView(context).apply { useController = true } }
+    // Se infla desde XML porque el tipo de superficie (TextureView) solo se puede elegir ahí.
+    val playerView = remember(context) {
+        LayoutInflater.from(context).inflate(R.layout.view_player, null) as PlayerView
+    }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
