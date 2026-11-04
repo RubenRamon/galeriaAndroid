@@ -20,4 +20,8 @@
     <!-- Galería -->
     <string name="gallery_title">Fotos</string>
     <string name="gallery_empty">No hay fotos ni vídeos que mostrar.</string>
+
+    <!-- Visor -->
+    <string name="viewer_close">Cerrar</string>
+    <string name="viewer_video_error">No se puede reproducir este vídeo.</string>
 </resources>
