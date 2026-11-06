@@ -11,10 +11,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.example.galeria.ui.GaleriaRoot
 import com.example.galeria.ui.components.LocalThumbnailLoader
 import com.example.galeria.ui.theme.GaleriaTheme
+import com.example.galeria.ui.viewer.LocalMediaInfoLoader
 import com.example.galeria.viewmodel.AlbumsViewModel
+import com.example.galeria.viewmodel.FavoritesViewModel
 import com.example.galeria.viewmodel.GalleryViewModel
 import com.example.galeria.viewmodel.GaleriaViewModelFactory
 import com.example.galeria.viewmodel.MainViewModel
+import com.example.galeria.viewmodel.TrashViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -24,6 +27,8 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels { GaleriaViewModelFactory(container) }
     private val galleryViewModel: GalleryViewModel by viewModels { GaleriaViewModelFactory(container) }
     private val albumsViewModel: AlbumsViewModel by viewModels { GaleriaViewModelFactory(container) }
+    private val favoritesViewModel: FavoritesViewModel by viewModels { GaleriaViewModelFactory(container) }
+    private val trashViewModel: TrashViewModel by viewModels { GaleriaViewModelFactory(container) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,8 +39,11 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             GaleriaTheme {
-                CompositionLocalProvider(LocalThumbnailLoader provides container.thumbnailLoader) {
-                    GaleriaRoot(viewModel, galleryViewModel, albumsViewModel)
+                CompositionLocalProvider(
+                    LocalThumbnailLoader provides container.thumbnailLoader,
+                    LocalMediaInfoLoader provides container.mediaInfoLoader
+                ) {
+                    GaleriaRoot(viewModel, galleryViewModel, albumsViewModel, favoritesViewModel, trashViewModel)
                 }
             }
         }

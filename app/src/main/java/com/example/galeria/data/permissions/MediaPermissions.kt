@@ -57,6 +57,17 @@ class MediaPermissions(private val context: Context) {
     }
 
     /**
+     * true solo si se puede ver TODO el contenido (imágenes y vídeos). Se usa para decidir si es seguro
+     * dar por desaparecido un archivo: con acceso parcial, un archivo ausente no implica que se haya borrado.
+     */
+    fun hasFullMediaAccess(): Boolean = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+            isGranted(Manifest.permission.READ_MEDIA_IMAGES) && isGranted(Manifest.permission.READ_MEDIA_VIDEO)
+
+        else -> isGranted(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
+    /**
      * true si Android todavía mostrará el diálogo de permiso.
      * Si es false tras una denegación, solo se puede activar desde Ajustes.
      */

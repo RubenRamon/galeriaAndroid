@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -48,7 +49,8 @@ private const val DOUBLE_TAP_ANIMATION_MS = 200
 fun ZoomableImage(
     image: ImageBitmap?,
     modifier: Modifier = Modifier,
-    onZoomedChange: (Boolean) -> Unit = {}
+    onZoomedChange: (Boolean) -> Unit = {},
+    onTap: () -> Unit = {}
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -57,6 +59,7 @@ fun ZoomableImage(
 
     // Informa al visor de si la foto está ampliada (sin recomponer en cada fotograma del gesto).
     val currentOnZoomedChange by rememberUpdatedState(onZoomedChange)
+    val currentOnTap by rememberUpdatedState(onTap)
     LaunchedEffect(Unit) {
         snapshotFlow { scale > 1.01f }
             .distinctUntilChanged()
@@ -67,7 +70,11 @@ fun ZoomableImage(
         val boxW = constraints.maxWidth.toFloat()
         val boxH = constraints.maxHeight.toFloat()
 
-        if (image == null || boxW <= 0f || boxH <= 0f) return@BoxWithConstraints
+        if (image == null || boxW <= 0f || boxH <= 0f) {
+            // Aún sin imagen: el toque sigue mostrando u ocultando los controles.
+            Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures(onTap = { currentOnTap() }) })
+            return@BoxWithConstraints
+        }
 
         // Tamaño real con el que se dibuja la foto (ajustada a la pantalla, sin recortar).
         val fit = min(boxW / image.width, boxH / image.height)
@@ -90,7 +97,7 @@ fun ZoomableImage(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(boxW, boxH, displayW, displayH) {
-                    detectTapGestures(onDoubleTap = { tap ->
+                    detectTapGestures(onTap = { currentOnTap() }, onDoubleTap = { tap ->
                         doubleTapJob?.cancel()
                         val startScale = scale
                         val startOffset = offset

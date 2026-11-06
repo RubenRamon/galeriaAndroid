@@ -19,6 +19,7 @@
 
     <!-- Galería -->
     <string name="gallery_title">Bienvenido Sr. Rubén</string>
+    <string name="gallery_collapsed_title">Fototeca</string>
     <string name="gallery_empty">No hay fotos ni vídeos que mostrar.</string>
 
     <!-- Visor -->
@@ -34,4 +35,50 @@
 
     <!-- Isla inferior -->
     <string name="tab_photos">Fotos</string>
+
+    <!-- Visor -->
+    <string name="viewer_share">Compartir</string>
+    <string name="viewer_info">Información</string>
+    <string name="viewer_play">Reproducir</string>
+    <string name="viewer_pause">Pausar</string>
+    <string name="share_error">No se pudo abrir el menú de compartir.</string>
+
+    <!-- Información del elemento -->
+    <string name="info_title">Información</string>
+    <string name="info_name">Nombre</string>
+    <string name="info_type">Tipo</string>
+    <string name="info_type_photo">Fotografía</string>
+    <string name="info_type_video">Vídeo</string>
+    <string name="info_captured">Fecha de captura</string>
+    <string name="info_size">Tamaño</string>
+    <string name="info_resolution">Resolución</string>
+    <string name="info_duration">Duración</string>
+    <string name="info_format">Formato</string>
+    <string name="info_album">Álbum</string>
+    <string name="info_path">Ruta</string>
+
+    <!-- Favoritos -->
+    <string name="favorites_title">Favoritos</string>
+    <string name="favorites_empty">Todavía no tienes favoritos. Pulsa el corazón al ver una foto o un vídeo para añadirlo.</string>
+    <string name="viewer_favorite_add">Añadir a favoritos</string>
+    <string name="viewer_favorite_remove">Quitar de favoritos</string>
+
+    <!-- Papelera -->
+    <string name="trash_title">Papelera</string>
+    <string name="trash_empty">La papelera está vacía.</string>
+    <string name="trash_restore_all">Restaurar todo</string>
+    <string name="trash_empty_action">Vaciar papelera</string>
+    <string name="viewer_trash">Enviar a la papelera</string>
+    <string name="viewer_restore">Restaurar</string>
+    <string name="viewer_delete_forever">Eliminar definitivamente</string>
+    <string name="trash_done_trashed">Movido a la papelera</string>
+    <string name="trash_done_restored">Restaurado</string>
+    <string name="trash_done_deleted">Eliminado definitivamente</string>
+    <string name="trash_failed">No se pudo completar la operación.</string>
+    <string name="trash_unsupported">La papelera requiere Android 11 o superior.</string>
+    <string name="delete_dialog_title">Eliminar definitivamente</string>
+    <string name="delete_dialog_one">Se eliminará 1 elemento de forma permanente. Esta acción no se puede deshacer.</string>
+    <string name="delete_dialog_many">Se eliminarán %d elementos de forma permanente. Esta acción no se puede deshacer.</string>
+    <string name="delete_dialog_confirm">Eliminar</string>
+    <string name="delete_dialog_cancel">Cancelar</string>
 </resources>

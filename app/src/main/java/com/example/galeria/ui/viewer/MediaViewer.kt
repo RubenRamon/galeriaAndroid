@@ -1,22 +1,17 @@
 package com.example.galeria.ui.viewer
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,46 +23,54 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.example.galeria.R
+import androidx.media3.common.Player
 import com.example.galeria.data.ViewerImageDecoder
 import com.example.galeria.data.model.MediaItem
 import com.example.galeria.ui.components.LocalThumbnailLoader
 import com.example.galeria.ui.components.VideoBadge
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val PLACEHOLDER_SIZE = 512
 private const val DISMISS_ANIMATION_MS = 160
+private const val CONTROLS_ANIMATION_MS = 160
+
+/** Espera antes de decodificar la foto completa: evita decodificar al pasar rápido por el carrusel. */
+private const val FULL_DECODE_DELAY_MS = 120L
 
 /**
- * Visor a pantalla completa. Se puede deslizar a izquierda y derecha entre los elementos de
- * [items], y cerrarlo con la X, el botón atrás o arrastrando hacia abajo.
- * Las fotos admiten zoom; los vídeos se reproducen con controles.
+ * Visor a pantalla completa en modo de visualización limpia: sin ningún control a la vista y con las
+ * barras del sistema ocultas. Un toque muestra los controles (carrusel, compartir, información y, en
+ * vídeos, barra de progreso y pausa); otro toque en una zona libre los oculta.
+ * Se puede deslizar a izquierda y derecha entre los elementos de [items] y cerrar arrastrando hacia abajo.
+ * Las fotos admiten zoom y doble toque.
  */
 @Composable
 fun MediaViewer(
     items: List<MediaItem>,
     startIndex: Int,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    favoriteKeys: Set<String>,
+    onToggleFavorite: (MediaItem) -> Unit,
+    onTrash: (MediaItem) -> Unit,
+    onRestore: (MediaItem) -> Unit,
+    onDeleteForever: (MediaItem) -> Unit,
+    modifier: Modifier = Modifier,
+    trashMode: Boolean = false
 ) {
+    val context = LocalContext.current
     BackHandler(onBack = onClose)
 
     val pagerState = rememberPagerState(
@@ -79,9 +82,21 @@ fun MediaViewer(
     var zoomed by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var heightPx by remember { mutableFloatStateOf(0f) }
+    var controlsVisible by remember { mutableStateOf(false) } // visualización limpia al abrir
+    var infoOpen by remember { mutableStateOf(false) }
+    var activePlayer by remember { mutableStateOf<Player?>(null) }
+
+    // Atrás cierra primero el panel de información, si está abierto.
+    BackHandler(enabled = infoOpen) { infoOpen = false }
+
+    // Barras del sistema ocultas en visualización limpia; visibles junto a los controles.
+    ViewerSystemBars(hidden = !controlsVisible)
 
     // Al cambiar de elemento, el zoom de la foto anterior ya no cuenta.
     LaunchedEffect(pagerState.settledPage) { zoomed = false }
+
+    val toggleControls: () -> Unit = remember { { controlsVisible = !controlsVisible } }
+    val currentItem = items[pagerState.currentPage.coerceIn(0, items.lastIndex)]
 
     Box(
         modifier
@@ -94,7 +109,7 @@ fun MediaViewer(
             }
             .pointerInput(Unit) {
                 detectSwipeDownToDismiss(
-                    isEnabled = { !zoomed },
+                    isEnabled = { !zoomed && !infoOpen },
                     onDrag = { dragOffset = it },
                     onEnd = { dismiss ->
                         scope.launch {
@@ -124,24 +139,52 @@ fun MediaViewer(
             val item = items[page]
             if (item.isVideo) {
                 // Solo el vídeo de la página en reposo tiene reproductor, para no crear varios a la vez.
-                VideoPage(item = item, isActive = pagerState.settledPage == page)
+                VideoPage(
+                    item = item,
+                    isActive = pagerState.settledPage == page,
+                    onTap = toggleControls,
+                    onPlayerReady = { activePlayer = it },
+                    onPlayerReleased = { if (activePlayer === it) activePlayer = null }
+                )
             } else {
-                PhotoPage(item = item, onZoomedChange = { zoomed = it })
+                PhotoPage(item = item, onZoomedChange = { zoomed = it }, onTap = toggleControls)
             }
         }
 
-        CloseButton(
-            onClick = onClose,
+        AnimatedVisibility(
+            visible = controlsVisible,
+            enter = fadeIn(tween(CONTROLS_ANIMATION_MS)),
+            exit = fadeOut(tween(CONTROLS_ANIMATION_MS)),
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(8.dp)
-        )
+                .fillMaxSize()
+                // Los controles se desvanecen mientras se arrastra para cerrar el visor.
+                .graphicsLayer {
+                    val progress = if (size.height > 0f) dragOffset / size.height else 0f
+                    alpha = (1f - progress * 3f).coerceIn(0f, 1f)
+                }
+        ) {
+            ViewerControlsLayer(
+                items = items,
+                pagerState = pagerState,
+                currentItem = currentItem,
+                player = activePlayer,
+                isFavorite = currentItem.key in favoriteKeys,
+                onShare = { shareMedia(context, currentItem) },
+                onToggleFavorite = { onToggleFavorite(currentItem) },
+                trashMode = trashMode,
+                onTrash = { onTrash(currentItem) },
+                onRestore = { onRestore(currentItem) },
+                onDeleteForever = { onDeleteForever(currentItem) },
+                onInfo = { infoOpen = true }
+            )
+        }
+
+        MediaInfoPanel(item = currentItem, visible = infoOpen, onDismiss = { infoOpen = false })
     }
 }
 
 @Composable
-private fun PhotoPage(item: MediaItem, onZoomedChange: (Boolean) -> Unit) {
+private fun PhotoPage(item: MediaItem, onZoomedChange: (Boolean) -> Unit, onTap: () -> Unit) {
     val context = LocalContext.current
     val loader = LocalThumbnailLoader.current
 
@@ -149,6 +192,7 @@ private fun PhotoPage(item: MediaItem, onZoomedChange: (Boolean) -> Unit) {
         // Primero la miniatura del sistema al instante; después, la foto a tamaño de pantalla.
         value = (loader.getCached(item, PLACEHOLDER_SIZE) ?: loader.load(item, PLACEHOLDER_SIZE))
             ?.asImageBitmap()
+        delay(FULL_DECODE_DELAY_MS)
         val full = withContext(Dispatchers.IO) {
             ViewerImageDecoder.decode(context.contentResolver, item.uri)
         }
@@ -158,12 +202,19 @@ private fun PhotoPage(item: MediaItem, onZoomedChange: (Boolean) -> Unit) {
     ZoomableImage(
         image = image,
         modifier = Modifier.fillMaxSize(),
-        onZoomedChange = onZoomedChange
+        onZoomedChange = onZoomedChange,
+        onTap = onTap
     )
 }
 
 @Composable
-private fun VideoPage(item: MediaItem, isActive: Boolean) {
+private fun VideoPage(
+    item: MediaItem,
+    isActive: Boolean,
+    onTap: () -> Unit,
+    onPlayerReady: (Player) -> Unit,
+    onPlayerReleased: (Player) -> Unit
+) {
     val loader = LocalThumbnailLoader.current
     val thumb by produceState<ImageBitmap?>(initialValue = null, item.key) {
         value = (loader.getCached(item, PLACEHOLDER_SIZE) ?: loader.load(item, PLACEHOLDER_SIZE))
@@ -181,29 +232,21 @@ private fun VideoPage(item: MediaItem, isActive: Boolean) {
             )
         }
         if (isActive) {
-            VideoPlayer(uri = item.uri, modifier = Modifier.fillMaxSize())
+            VideoPlayer(
+                uri = item.uri,
+                onPlayerReady = onPlayerReady,
+                onPlayerReleased = onPlayerReleased,
+                modifier = Modifier.fillMaxSize()
+            )
         } else {
             VideoBadge(Modifier.align(Alignment.Center), size = 64.dp)
         }
-    }
-}
-
-@Composable
-private fun CloseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.viewer_close)
-    Box(
-        modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(Modifier.size(16.dp)) {
-            val stroke = 2.dp.toPx()
-            drawLine(Color.White, Offset(0f, 0f), Offset(size.width, size.height), stroke, StrokeCap.Round)
-            drawLine(Color.White, Offset(size.width, 0f), Offset(0f, size.height), stroke, StrokeCap.Round)
-        }
+        // Capa transparente que recoge el toque para mostrar u ocultar los controles.
+        // Un toque NO pausa el vídeo: la pausa solo la gestiona el botón de los controles.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) { detectTapGestures(onTap = { onTap() }) }
+        )
     }
 }

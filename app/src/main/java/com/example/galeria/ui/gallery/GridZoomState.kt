@@ -24,7 +24,11 @@ import com.example.galeria.domain.model.GalleryEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
 import kotlin.math.roundToInt
+
+/** Margen para que un valor entero exacto (5,0) no se trate como 5,0001. */
+private const val EPSILON = 0.001f
 
 /**
  * Elemento de referencia que debe quedarse en la misma altura de pantalla
@@ -39,12 +43,20 @@ class ZoomAnchor(
 )
 
 /**
- * Estado del zoom de una cuadrícula: número de columnas y lógica para cambiarlas
- * manteniendo la posición. Reutilizable en la galería y en los álbumes.
+ * Estado del zoom de una cuadrícula. Reutilizable en la galería y en los álbumes.
+ *
+ * Cómo funciona el zoom fluido:
+ *  - Existe un número de columnas CONTINUO (p. ej. 5,4) que sigue a los dedos.
+ *  - La cuadrícula real usa el entero inmediatamente superior ([columns], p. ej. 6).
+ *  - La diferencia se compensa con una escala gráfica ([zoomScale] = columns / continuo), de modo que
+ *    el tamaño visible de las miniaturas cambia de forma continua. Como el entero es siempre >= al
+ *    continuo, la escala es >= 1 y la cuadrícula nunca deja bordes vacíos.
+ *  - Solo al cruzar un entero se vuelve a calcular la cuadrícula; el resto del tiempo es solo dibujo.
  */
 @Stable
 class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
 
+    /** Columnas de la cuadrícula real (entero). */
     var columns by mutableIntStateOf(initialColumns.coerceIn(GalleryConfig.MIN_COLUMNS, GalleryConfig.MAX_COLUMNS))
         private set
 
@@ -53,16 +65,12 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
 
     val showsYearHeaders: Boolean get() = columns >= GalleryConfig.YEAR_HEADERS_MIN_COLUMNS
 
-    /** Escala gráfica temporal de la animación de zoom (1 = en reposo). Solo se lee al dibujar. */
+    /** Escala gráfica que mantiene continuo el tamaño visible (1 = en reposo). Solo se lee al dibujar. */
     var zoomScale by mutableFloatStateOf(1f)
-        internal set
-
-    /** Punto (en píxeles) alrededor del cual se anima el zoom: los dedos o la miniatura pulsada. */
-    var zoomOrigin by mutableStateOf(Offset.Unspecified)
         private set
 
-    /** Se incrementa en cada cambio de columnas para lanzar la animación. */
-    var zoomChangeCount by mutableIntStateOf(0)
+    /** Punto (en píxeles) alrededor del cual se escala: los dedos o la miniatura pulsada. */
+    var zoomOrigin by mutableStateOf(Offset.Unspecified)
         private set
 
     // Los actualiza ZoomableMediaGrid en cada recomposición.
@@ -70,42 +78,55 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
     internal var entriesProvider: (yearHeaders: Boolean) -> List<GalleryEntry> = { emptyList() }
     internal var leadingCount: Int = 0
 
-    private var pinchStartColumns = columns.toFloat()
+    private var columnsFloat = columns.toFloat()
+    private var pinchStartColumns = columnsFloat
     private var animationJob: Job? = null
 
     internal fun beginPinch(centroid: Offset): ZoomAnchor? {
         animationJob?.cancel()
-        pinchStartColumns = columns.toFloat()
-        if (centroid.isSpecified) zoomOrigin = centroid
-        return findAnchor(centroid)
+        pinchStartColumns = columnsFloat
+        val anchor = findAnchor(centroid)
+        if (centroid.isSpecified) setOrigin(centroid.x, anchor, centroid.y)
+        return anchor
     }
 
     /** Separar dedos (zoom > 1) = menos columnas; juntarlos = más columnas. */
     internal fun updatePinch(totalZoom: Float, anchor: ZoomAnchor?) {
-        if (totalZoom > 0f) applyColumns(pinchStartColumns / totalZoom, anchor)
+        if (totalZoom > 0f) setContinuous(pinchStartColumns / totalZoom, anchor)
     }
 
-    /** Amplía un nivel con animación alrededor de la miniatura pulsada (modo compacto). */
+    /** Al soltar, la cuadrícula se asienta con suavidad en el número entero de columnas más cercano. */
+    internal fun endPinch(scope: CoroutineScope, anchor: ZoomAnchor?) {
+        val target = columnsFloat.roundToInt()
+            .coerceIn(GalleryConfig.MIN_COLUMNS, GalleryConfig.MAX_COLUMNS)
+            .toFloat()
+        animateTo(scope, target, anchor, GalleryConfig.ZOOM_SETTLE_ANIMATION_MS)
+    }
+
+    /** Amplía un nivel con transición alrededor de la miniatura pulsada (modo compacto). */
     internal fun zoomInFrom(scope: CoroutineScope, itemKey: String) {
         val target = tapZoomTarget(columns)
         if (target >= columns) return
 
         val info = visibleInfo(itemKey)
         val anchor = info?.let { anchorFrom(it) }
-        if (info != null) {
-            zoomOrigin = Offset(
-                info.offset.x + info.size.width / 2f,
-                info.offset.y + info.size.height / 2f
-            )
-        }
+        if (info != null) setOrigin(info.offset.x + info.size.width / 2f, anchor, info.offset.y.toFloat())
 
+        animateTo(scope, target.toFloat(), anchor, GalleryConfig.ZOOM_ANIMATION_MS)
+    }
+
+    private fun animateTo(scope: CoroutineScope, target: Float, anchor: ZoomAnchor?, durationMs: Int) {
         animationJob?.cancel()
+        if (columnsFloat == target) {
+            setContinuous(target, anchor)
+            return
+        }
         animationJob = scope.launch {
             animate(
-                initialValue = columns.toFloat(),
-                targetValue = target.toFloat(),
-                animationSpec = tween(GalleryConfig.ZOOM_ANIMATION_MS)
-            ) { value, _ -> applyColumns(value, anchor) }
+                initialValue = columnsFloat,
+                targetValue = target,
+                animationSpec = tween(durationMs)
+            ) { value, _ -> setContinuous(value, anchor) }
         }
     }
 
@@ -113,24 +134,27 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
         GalleryConfig.TAP_ZOOM_LEVELS.firstOrNull { it < current }
             ?: (current - 1).coerceAtLeast(GalleryConfig.MIN_COLUMNS)
 
-    private fun applyColumns(value: Float, anchor: ZoomAnchor?) {
-        val newColumns = value
-            .coerceIn(GalleryConfig.MIN_COLUMNS.toFloat(), GalleryConfig.MAX_COLUMNS.toFloat())
-            .roundToInt()
-        val oldColumns = columns
-        if (newColumns == oldColumns) return
+    /** Los ejes se escalan alrededor de la x de los dedos y de la altura de la fila de referencia. */
+    private fun setOrigin(x: Float, anchor: ZoomAnchor?, fallbackY: Float) {
+        zoomOrigin = Offset(x, anchor?.topPx?.toFloat() ?: fallbackY)
+    }
 
-        columns = newColumns
+    /**
+     * Aplica un número de columnas continuo: actualiza la escala gráfica y, solo si cambia el entero,
+     * la cuadrícula real (manteniendo en su sitio el elemento de referencia).
+     */
+    private fun setContinuous(value: Float, anchor: ZoomAnchor?) {
+        val f = value.coerceIn(GalleryConfig.MIN_COLUMNS.toFloat(), GalleryConfig.MAX_COLUMNS.toFloat())
+        columnsFloat = f
+        val committed = ceil(f - EPSILON).toInt()
+            .coerceIn(GalleryConfig.MIN_COLUMNS, GalleryConfig.MAX_COLUMNS)
 
-        // Animación: las celdas nuevas miden (viejo / nuevo) veces el tamaño anterior. Se parte de
-        // esa escala (limitada) y la capa vuelve a 1. Se escribe en el mismo instante que el cambio
-        // de columnas para que el primer dibujado ya salga con la escala aplicada.
-        zoomScale = (zoomScale * newColumns / oldColumns)
-            .coerceIn(GalleryConfig.ZOOM_STEP_MIN_SCALE, GalleryConfig.ZOOM_STEP_MAX_SCALE)
-        zoomChangeCount++
+        // Misma escritura de estado que el cambio de columnas: el primer dibujado ya sale compensado.
+        zoomScale = committed / f
 
-        // Se pide el desplazamiento en el mismo instante que el cambio de columnas,
-        // así el siguiente dibujado ya sale colocado y no hay saltos visibles.
+        if (committed == columns) return
+        columns = committed
+
         val state = gridState ?: return
         if (anchor == null) return
         val index = if (showsYearHeaders == anchor.yearHeaders) {
@@ -195,7 +219,7 @@ class GridZoomState(initialColumns: Int = GalleryConfig.DEFAULT_COLUMNS) {
  * Se observa en el paso inicial de eventos: con dos dedos se consume el gesto para que ni la
  * lista se desplace ni se abra ninguna miniatura.
  */
-internal suspend fun PointerInputScope.detectGridPinch(zoomState: GridZoomState) {
+internal suspend fun PointerInputScope.detectGridPinch(zoomState: GridZoomState, scope: CoroutineScope) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
 
@@ -220,5 +244,7 @@ internal suspend fun PointerInputScope.detectGridPinch(zoomState: GridZoomState)
             // Una vez empezado el pellizco se consume todo hasta soltar los dedos.
             if (pinching) event.changes.forEach { it.consume() }
         } while (event.changes.any { it.pressed })
+
+        if (pinching) zoomState.endPinch(scope, anchor)
     }
 }

@@ -1,8 +1,7 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.galeria.ui.gallery
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +14,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -26,11 +25,9 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.isSpecified
@@ -48,7 +45,6 @@ import com.example.galeria.domain.model.GalleryEntry
 import com.example.galeria.ui.components.MediaThumbnail
 import com.example.galeria.ui.components.VideoDurationLabel
 import com.example.galeria.ui.theme.GalleryGreyDark
-import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Cuadrícula de fotos y vídeos con zoom por pellizco, reutilizable en la galería
@@ -82,20 +78,6 @@ fun ZoomableMediaGrid(
         zoomState.leadingCount = leadingItemCount
     }
 
-    // Anima cada cambio de columnas: la escala de la capa vuelve suavemente a 1.
-    // collectLatest cancela la animación anterior si llega otro cambio durante un pellizco.
-    LaunchedEffect(zoomState) {
-        snapshotFlow { zoomState.zoomChangeCount }.collectLatest {
-            if (zoomState.zoomScale != 1f) {
-                animate(
-                    initialValue = zoomState.zoomScale,
-                    targetValue = 1f,
-                    animationSpec = tween(GalleryConfig.ZOOM_STEP_ANIMATION_MS, easing = FastOutSlowInEasing)
-                ) { value, _ -> zoomState.zoomScale = value }
-            }
-        }
-    }
-
     val handleClick: (MediaItem) -> Unit = remember(zoomState, onMediaClick, scope) {
         { item ->
             if (zoomState.isCompact) {
@@ -115,14 +97,16 @@ fun ZoomableMediaGrid(
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
-            contentPadding = WindowInsets.systemBars.add(WindowInsets(bottom = bottomPadding)).asPaddingValues(),
+            contentPadding = WindowInsets.systemBarsIgnoringVisibility.add(WindowInsets(bottom = bottomPadding)).asPaddingValues(),
             horizontalArrangement = Arrangement.spacedBy(GalleryConfig.CELL_SPACING),
             verticalArrangement = Arrangement.spacedBy(GalleryConfig.CELL_SPACING),
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(zoomState) { detectGridPinch(zoomState) }
+                .pointerInput(zoomState, scope) { detectGridPinch(zoomState, scope) }
                 .graphicsLayer {
-                    // Solo transformación de la capa en la fase de dibujo: no recompone ni vuelve a medir.
+                    // Escala continua ligada al pellizco. Solo afecta a la fase de dibujo:
+                    // no recompone ni vuelve a medir la cuadrícula.
+                    clip = true
                     val scale = zoomState.zoomScale
                     scaleX = scale
                     scaleY = scale

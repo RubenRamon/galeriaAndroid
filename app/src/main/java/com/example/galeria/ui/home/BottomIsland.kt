@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.galeria.ui.home
 
 import androidx.compose.foundation.Canvas
@@ -6,7 +8,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,7 +52,7 @@ fun BottomIsland(
 ) {
     Row(
         modifier
-            .navigationBarsPadding()
+            .windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)
             .padding(bottom = 16.dp)
             .clip(RoundedCornerShape(percent = 50))
             .background(IslandBackground)

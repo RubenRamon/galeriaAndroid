@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.galeria.ui.albums
 
 import androidx.compose.foundation.background
@@ -13,7 +15,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,8 +37,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.galeria.R
 import com.example.galeria.data.model.Album
+import com.example.galeria.data.model.MediaItem
 import com.example.galeria.data.thumbnails.ThumbnailLoader
 import com.example.galeria.ui.components.MediaThumbnail
+import com.example.galeria.ui.components.drawHeartIcon
+import com.example.galeria.ui.components.drawTrashIcon
 import com.example.galeria.ui.components.VideoBadge
 import com.example.galeria.ui.gallery.GalleryConfig
 import com.example.galeria.ui.theme.GalleryGreyDark
@@ -50,12 +55,18 @@ private const val ALBUM_COLUMNS = 2
 @Composable
 fun AlbumsScreen(
     state: AlbumsUiState,
+    favoritesCount: Int,
+    favoritesCover: MediaItem?,
+    onFavoritesClick: () -> Unit,
+    trashCount: Int,
+    trashCover: MediaItem?,
+    onTrashClick: () -> Unit,
     onAlbumClick: (Album) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
     val gridState = rememberLazyGridState()
-    val insets = WindowInsets.systemBars.asPaddingValues()
+    val insets = WindowInsets.systemBarsIgnoringVisibility.asPaddingValues()
 
     // Si dos carpetas se llaman igual, se muestra además su ruta para distinguirlas.
     val duplicatedNames = remember(state.albums) {
@@ -88,6 +99,24 @@ fun AlbumsScreen(
                     fontWeight = FontWeight.Light,
                     modifier = Modifier.padding(start = 12.dp, top = 56.dp, bottom = 16.dp)
                 )
+            }
+
+            // Fila de colecciones especiales: Favoritos y Papelera, del mismo tamaño.
+            item(key = "tile_favorites", contentType = "tile") {
+                CollectionTile(
+                    title = stringResource(R.string.favorites_title),
+                    count = favoritesCount,
+                    cover = favoritesCover,
+                    onClick = onFavoritesClick
+                ) { color -> drawHeartIcon(color, filled = false) }
+            }
+            item(key = "tile_trash", contentType = "tile") {
+                CollectionTile(
+                    title = stringResource(R.string.trash_title),
+                    count = trashCount,
+                    cover = trashCover,
+                    onClick = onTrashClick
+                ) { color -> drawTrashIcon(color) }
             }
 
             if (!state.isLoaded) {

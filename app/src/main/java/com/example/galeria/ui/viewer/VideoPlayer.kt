@@ -5,15 +5,13 @@ import android.content.ContextWrapper
 import android.net.Uri
 import android.view.LayoutInflater
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,13 +31,21 @@ import androidx.media3.ui.PlayerView
 import com.example.galeria.R
 
 /**
- * Reproductor a pantalla completa con controles de reproducción, pausa y progreso.
+ * Superficie de vídeo a pantalla completa, sin controles propios. El visor dibuja la barra de
+ * progreso y el botón de pausa por encima, y los entrega a través de [onPlayerReady]/[onPlayerReleased].
  * Crea un ExoPlayer al entrar en la composición y lo libera al salir.
  */
 @Composable
-fun VideoPlayer(uri: Uri, modifier: Modifier = Modifier) {
+fun VideoPlayer(
+    uri: Uri,
+    onPlayerReady: (Player) -> Unit,
+    onPlayerReleased: (Player) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     var hasError by remember(uri) { mutableStateOf(false) }
+    val currentOnReady by rememberUpdatedState(onPlayerReady)
+    val currentOnReleased by rememberUpdatedState(onPlayerReleased)
 
     val player = remember(uri) {
         ExoPlayer.Builder(context)
@@ -64,7 +70,9 @@ fun VideoPlayer(uri: Uri, modifier: Modifier = Modifier) {
         }
         player.addListener(listener)
         playerView.player = player
+        currentOnReady(player)
         onDispose {
+            currentOnReleased(player)
             player.removeListener(listener)
             playerView.player = null
             player.release() // libera decodificadores y memoria
@@ -81,7 +89,7 @@ fun VideoPlayer(uri: Uri, modifier: Modifier = Modifier) {
         onDispose { lifecycle?.removeObserver(observer) }
     }
 
-    Box(modifier.windowInsetsPadding(WindowInsets.systemBars)) {
+    Box(modifier) {
         AndroidView(factory = { playerView }, modifier = Modifier.matchParentSize())
         if (hasError) {
             Text(

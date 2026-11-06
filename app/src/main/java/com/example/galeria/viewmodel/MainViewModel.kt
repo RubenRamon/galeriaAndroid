@@ -12,6 +12,7 @@ import com.example.galeria.domain.model.ViewerRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Estado global: permisos, contenido multimedia disponible y visor abierto. */
@@ -61,9 +62,33 @@ class MainViewModel(
      * Abre el visor en [item]. [items] es la lista por la que se podrá deslizar:
      * toda la galería por defecto, o el contenido de un álbum.
      */
-    fun openViewer(item: MediaItem, items: List<MediaItem> = library.value.items) {
+    fun openViewer(
+        item: MediaItem,
+        items: List<MediaItem> = library.value.items,
+        fromTrash: Boolean = false
+    ) {
         val index = items.indexOfFirst { it.key == item.key }
-        if (index >= 0) _viewer.value = ViewerRequest(items, index)
+        if (index >= 0) _viewer.value = ViewerRequest(items, index, fromTrash)
+    }
+
+    /**
+     * Quita elementos de la lista del visor (se han enviado a la papelera, restaurado o eliminado).
+     * El visor pasa al elemento siguiente y se cierra si ya no queda ninguno.
+     */
+    fun removeFromViewer(removed: List<MediaItem>) {
+        val keys = removed.mapTo(HashSet()) { it.key }
+        _viewer.update { request ->
+            if (request == null) {
+                null
+            } else {
+                val remaining = request.items.filter { it.key !in keys }
+                if (remaining.isEmpty()) {
+                    null
+                } else {
+                    request.copy(items = remaining, startIndex = request.startIndex.coerceAtMost(remaining.lastIndex))
+                }
+            }
+        }
     }
 
     fun closeViewer() {

@@ -29,5 +29,10 @@ data class MediaItem(
 ) {
     val isVideo: Boolean get() = type == MediaType.VIDEO
 
-    val key: String = (if (type == MediaType.VIDEO) "v_" else "i_") + id
+    val key: String = keyOf(type, id)
+
+    companion object {
+        /** Clave estable de un elemento: el tipo evita choques entre ids de fotos y de vídeos. */
+        fun keyOf(type: MediaType, id: Long): String = (if (type == MediaType.VIDEO) "v_" else "i_") + id
+    }
 }

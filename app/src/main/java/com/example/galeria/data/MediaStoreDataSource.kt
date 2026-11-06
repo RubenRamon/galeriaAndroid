@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -52,6 +53,57 @@ class MediaStoreDataSource(private val contentResolver: ContentResolver) {
         )
     }
 
+    /**
+     * ¿Sigue existiendo el elemento en MediaStore, incluso si está en la papelera?
+     * Devuelve null si no se puede saber (error o permiso): en ese caso no hay que borrar nada.
+     */
+    fun existsIncludingTrashed(type: MediaType, id: Long): Boolean? = try {
+        val collection = if (type == MediaType.VIDEO) videosUri else imagesUri
+        val uri = ContentUris.withAppendedId(collection, id)
+        val projection = arrayOf(MediaStore.MediaColumns._ID)
+        val cursor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val args = Bundle().apply {
+                putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE)
+            }
+            contentResolver.query(uri, projection, args, null)
+        } else {
+            contentResolver.query(uri, projection, null, null, null)
+        }
+        cursor?.use { it.count > 0 }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Elementos que están en la papelera de MediaStore (Android 11 o superior), del más reciente al más antiguo. */
+    suspend fun queryTrashed(): List<MediaItem> = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            emptyList()
+        } else {
+            (query(imagesUri, MediaType.IMAGE, trashedOnly = true) +
+                query(videosUri, MediaType.VIDEO, trashedOnly = true))
+                .sortedWith(compareByDescending<MediaItem> { it.dateMillis }.thenByDescending { it.id })
+        }
+    }
+
+    /** URI limpia de un elemento (sin parámetros), la que esperan las solicitudes del sistema. */
+    fun cleanUri(type: MediaType, id: Long): Uri =
+        ContentUris.withAppendedId(if (type == MediaType.VIDEO) videosUri else imagesUri, id)
+
+    /**
+     * Los elementos de la papelera no se pueden abrir con su URI normal. MediaStore acepta el parámetro
+     * "includeTrashed" para pedirlo expresamente. La función de MediaStore que lo añade no es pública,
+     * así que se añade el parámetro a mano. Si el sistema lo ignorase, el elemento solo se vería
+     * como un hueco gris en la papelera; nada más se vería afectado.
+     */
+    private fun itemUri(collection: Uri, id: Long, trashed: Boolean): Uri {
+        val uri = ContentUris.withAppendedId(collection, id)
+        return if (trashed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            uri.buildUpon().appendQueryParameter(INCLUDE_TRASHED_PARAM, "1").build()
+        } else {
+            uri
+        }
+    }
+
     /** Emite cada vez que cambia el contenido multimedia (alta, baja o movimiento de archivos). */
     fun observeChanges(): Flow<Unit> = callbackFlow {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -65,7 +117,7 @@ class MediaStoreDataSource(private val contentResolver: ContentResolver) {
     }.conflate()
 
     @Suppress("DEPRECATION")
-    private suspend fun query(collection: Uri, type: MediaType): List<MediaItem> {
+    private suspend fun query(collection: Uri, type: MediaType, trashedOnly: Boolean = false): List<MediaItem> {
         val isVideo = type == MediaType.VIDEO
         val useRelativePath = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
@@ -84,8 +136,16 @@ class MediaStoreDataSource(private val contentResolver: ContentResolver) {
             if (isVideo) add(MediaStore.Video.Media.DURATION)
         }.toTypedArray()
 
-        val cursor = contentResolver.query(collection, projection, null, null, null)
-            ?: return emptyList()
+        val cursor = (if (trashedOnly) {
+            // Solo existe la papelera de MediaStore desde Android 11.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return emptyList()
+            val args = Bundle().apply {
+                putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_ONLY)
+            }
+            contentResolver.query(collection, projection, args, null)
+        } else {
+            contentResolver.query(collection, projection, null, null, null)
+        }) ?: return emptyList()
 
         cursor.use {
             val idCol = it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
@@ -126,7 +186,7 @@ class MediaStoreDataSource(private val contentResolver: ContentResolver) {
                     MediaItem(
                         id = id,
                         type = type,
-                        uri = ContentUris.withAppendedId(collection, id),
+                        uri = itemUri(collection, id, trashedOnly),
                         displayName = it.getString(nameCol).orEmpty(),
                         mimeType = it.getString(mimeCol),
                         dateMillis = dateMillis,
@@ -151,5 +211,6 @@ class MediaStoreDataSource(private val contentResolver: ContentResolver) {
         const val COL_BUCKET_NAME = MediaStore.Images.Media.BUCKET_DISPLAY_NAME
         const val UNKNOWN_BUCKET = "Sin carpeta"
         const val CANCELLATION_CHECK_EVERY = 500
+        const val INCLUDE_TRASHED_PARAM = "includeTrashed"
     }
 }

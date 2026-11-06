@@ -32,17 +32,11 @@ object GalleryConfig {
     /** Con este número de columnas o más (miniaturas muy pequeñas), los vídeos no muestran su duración. */
     const val HIDE_VIDEO_INFO_MIN_COLUMNS = 10
 
-    /** Duración de la animación al pulsar en modo compacto. */
+    /** Duración de la transición al pulsar en modo compacto. */
     const val ZOOM_ANIMATION_MS = 250
 
-    /**
-     * Animación de cada cambio de columnas: la cuadrícula parte de un tamaño cercano al anterior y se
-     * asienta en el nuevo. Es solo una transformación gráfica de la capa (no recompone ni mueve elementos).
-     * Los límites evitan bordes vacíos al reducir y un exceso al ampliar.
-     */
-    const val ZOOM_STEP_ANIMATION_MS = 160
-    const val ZOOM_STEP_MIN_SCALE = 0.9f
-    const val ZOOM_STEP_MAX_SCALE = 1.15f
+    /** Al soltar los dedos, tiempo que tarda la cuadrícula en asentarse en el número de columnas más cercano. */
+    const val ZOOM_SETTLE_ANIMATION_MS = 180
 
     /** Espacio libre al final de las listas para que la isla inferior no tape las últimas miniaturas. */
     val BOTTOM_ISLAND_CLEARANCE = 84.dp
